@@ -1,8 +1,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 
 #include "hash_table.h"
+
+#define HT_PRIME_1 151
+#define HT_PRIME_2 157
+
 
 static ht_pair* ht_new_pair(const char* k, const char* v) {
 	ht_pair* pair = malloc(sizeof(ht_pair));
@@ -45,7 +50,7 @@ static int ht_hash(const char* str, const int a, const int m) {
 	int string_length = strlen(str);
 	int i = 0;
 	for(i; i < string_length; i++) {
-		hash += (long)pow(a, string_length - ( i + 1)) * s[i];
+		hash += (long)pow(a, string_length - ( i + 1)) * str[i];
 		hash = hash % m;
 	}
 
@@ -55,5 +60,7 @@ static int ht_hash(const char* str, const int a, const int m) {
 static int ht_get_hash(const char* str, const int bucket_size, const int attempts) {
 	const int hash_a = ht_hash(str, HT_PRIME_1, bucket_size);
 	const int hash_b = ht_hash(str, HT_PRIME_2, bucket_size);
-	return ( hash_a + i * ( hash_b + 1 ) ) % num_buckets;
+	return ( hash_a + attempts * ( hash_b + 1 ) ) % bucket_size;
 }
+
+
