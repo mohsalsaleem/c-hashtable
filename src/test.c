@@ -3,7 +3,7 @@
 #include "hash_table.h"
 
 int main() {
-	ht_hash_table* hash_table = (ht_hash_table*)ht_new();
+	ht_hash_table* hash_table = (ht_hash_table*)ht_new(500);
 
 	// Insert
 	ht_insert(hash_table, "name", "saleem");
