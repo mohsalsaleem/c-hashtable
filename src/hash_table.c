@@ -145,15 +145,14 @@ void ht_insert(ht_hash_table* hash_table, const char* key, const char* value) {
 	
 	int i = 1;
 	// Loop until we find an empty bucket.
-	while( true ) {
-		if((current_pair == NULL)) {
+	while(current_pair != NULL && current_pair != &HT_DELETED_PAIR) {
+		// Incase the key already exists
+		if(strcmp(current_pair->key, key) == 0) {
 			break;
 		}
-		if(current_pair != &HT_DELETED_PAIR) {
-			index = ht_get_hash(new_pair->key, hash_table->size, i);
-			current_pair = hash_table->pairs[index];
-			i++;
-		}
+		index = ht_get_hash(new_pair->key, hash_table->size, i);
+		current_pair = hash_table->pairs[index];
+		i++;
 	}
 
 	// Delete in case the bucket is already not empty for a specific key
