@@ -45,8 +45,8 @@ ht_hash_table* ht_new_sized(const int base_size) {
 	return hash_table;
 }
 
-ht_hash_table* ht_new() {
-	return ht_new_sized(HT_INTIAL_BASE_SIZE);
+ht_hash_table* ht_new(const int size) {
+	return ht_new_sized(size);
 }
 
 static void ht_delete_pair(ht_pair* pair) {
@@ -130,10 +130,14 @@ static int ht_get_hash(const char* str, const int bucket_size, const int attempt
 
 void ht_insert(ht_hash_table* hash_table, const char* key, const char* value) {
 
-	const int load = hash_table->count * 100 / hash_table->size;
-	if(load > 70) {
-		ht_resize_up(hash_table);
+	if(hash_table->count == hash_table->size) {
+		return;
 	}
+
+	// const int load = hash_table->count * 100 / hash_table->size;
+	// if(load > 70) {
+	// 	ht_resize_up(hash_table);
+	// }
 
 	ht_pair* new_pair = ht_new_pair(key, value);
 
