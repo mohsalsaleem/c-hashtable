@@ -12,6 +12,7 @@
 #define HT_INTIAL_BASE_SIZE 50
 
 static ht_pair HT_DELETED_PAIR = {NULL, NULL};
+static dll DL_EMPTY_LIST = {NULL, NULL};
 
 static void log_char(const char* str) {
 	printf("%s\n", str);
@@ -33,6 +34,52 @@ static ht_pair* ht_new_pair(const char* k, const char* v) {
 	return pair;
 }
 
+static int ht_hash(const char* str, const int a, const int m) {
+	long hash = 0;
+	int string_length = strlen(str);
+	int i = 0;
+	for(i; i < string_length; i++) {
+		hash += (long)pow(a, string_length - ( i + 1)) * str[i];
+		hash = hash % m;
+	}
+
+	return (int)hash;
+}
+
+void dll_print(dll* list) {
+	Node* node = list->head;
+	do {
+		if(node != NULL) {
+			printf("Key: %s\n", node->pair->key);
+			node = node->next;
+		}
+	} while(node != NULL);
+}
+
+dll* dll_new() {
+	dll* new_dll = malloc(sizeof(dll));
+	new_dll->head = NULL;
+	new_dll->tail = NULL;
+}
+
+void dll_insert(dll* list, const char* key, const char* value) {
+	ht_pair* new_pair = ht_new_pair(key, value);
+	
+	Node* new_node = malloc(sizeof(Node));
+	new_node->pair = new_pair;
+	new_node->next = NULL;
+	
+	if(list->head == NULL) {
+		new_node->previous = NULL;
+		list->head = new_node;
+		list->tail = new_node;
+	} else {
+		list->tail->next = new_node;
+		new_node->previous = list->tail;
+		list->tail = new_node;
+	}
+}
+
 ht_hash_table* ht_new_sized(const int base_size) {
 	ht_hash_table* hash_table = malloc(sizeof(ht_hash_table));
 
@@ -40,7 +87,8 @@ ht_hash_table* ht_new_sized(const int base_size) {
 	hash_table->size = next_prime(hash_table->base_size);
 
 	hash_table->count = 0;
-	hash_table->pairs = calloc((size_t)hash_table->size, sizeof(ht_pair*));
+	// hash_table->pairs = calloc((size_t)hash_table->size, sizeof(ht_pair*));
+	hash_table->list = malloc(sizeof(dll));
 
 	return hash_table;
 }
@@ -62,156 +110,175 @@ static void ht_delete_pair(ht_pair* pair) {
 	free(pair);
 }
 
-void ht_delete_hash_table(ht_hash_table* hash_table) {
-	int i;
-	for (i = 0; i < hash_table->size; i++) {
-		ht_pair* pair =  hash_table->pairs[i];
-		if(pair != NULL) {
-			ht_delete_pair(pair);
-		}
+static void dll_delete_node(Node* node) {
+	if(node->previous != NULL) {
+		node->previous->next = node->next;
 	}
-	free(hash_table->pairs);
-	free(hash_table);
+	if(node->next != NULL) {
+		node->next->previous = node->previous;
+	}
+	free(node);
 }
 
-static int ht_hash(const char* str, const int a, const int m) {
-	long hash = 0;
-	int string_length = strlen(str);
-	int i = 0;
-	for(i; i < string_length; i++) {
-		hash += (long)pow(a, string_length - ( i + 1)) * str[i];
-		hash = hash % m;
-	}
+void dll_delete(dll *list) {
+	int m = 0;
 
-	return (int)hash;
-}
+	Node* node = list->head;
+	Node* next_node;
 
-static void ht_resize(ht_hash_table* hash_table, const int base_size) {
-	if(base_size < HT_INTIAL_BASE_SIZE) {
-		return;
-	}
-
-	ht_hash_table* new_hash_table = ht_new_sized(base_size);
-	int i = 0;
-	for(i; i< hash_table->size; i++) {
-		ht_pair* pair = hash_table->pairs[i];
-		if(pair != NULL && pair != &HT_DELETED_PAIR) {
-			ht_insert(new_hash_table, pair->key, pair->value);
+	while(node != NULL) {
+		next_node = node->next;
+		dll_delete_node(node);
+		node = next_node;
+		if(node != NULL)
+			node->previous = NULL;
+		if(m > 50) {
+			exit(EXIT_FAILURE);
 		}
 	}
 
-	hash_table->base_size = new_hash_table->base_size;
-	hash_table->count = new_hash_table->count;
-
-	const int tmp_size = hash_table->size;
-	hash_table->size = new_hash_table->size;
-	new_hash_table->size = tmp_size;
-
-	ht_pair** tmp_pairs = hash_table->pairs;
-	hash_table->pairs = new_hash_table->pairs;
-	new_hash_table->pairs = tmp_pairs;
-
-	ht_delete_hash_table(new_hash_table);
+	list->head = NULL;
+	list->tail = NULL;
 }
 
-static void ht_resize_up(ht_hash_table* hash_table) {
-	ht_resize(hash_table, hash_table->base_size * 2);
-}
+// void ht_delete_hash_table(ht_hash_table* hash_table) {
+// 	int i;
+// 	for (i = 0; i < hash_table->size; i++) {
+// 		ht_pair* pair =  hash_table->pairs[i];
+// 		if(pair != NULL) {
+// 			ht_delete_pair(pair);
+// 		}
+// 	}
+// 	free(hash_table->pairs);
+// 	free(hash_table);
+// }
 
-static void ht_resize_down(ht_hash_table* hash_table) {
-	ht_resize(hash_table, hash_table->base_size / 2);
-}
+// static void ht_resize(ht_hash_table* hash_table, const int base_size) {
+// 	if(base_size < HT_INTIAL_BASE_SIZE) {
+// 		return;
+// 	}
 
-static int ht_get_hash(const char* str, const int bucket_size, const int attempts) {
-	const int hash_a = ht_hash(str, HT_PRIME_1, bucket_size);
-	const int hash_b = ht_hash(str, HT_PRIME_2, bucket_size);
-	return ( hash_a + attempts * ( hash_b + 1 ) ) % bucket_size;
-}
+// 	ht_hash_table* new_hash_table = ht_new_sized(base_size);
+// 	int i = 0;
+// 	for(i; i< hash_table->size; i++) {
+// 		ht_pair* pair = hash_table->pairs[i];
+// 		if(pair != NULL && pair != &HT_DELETED_PAIR) {
+// 			ht_insert(new_hash_table, pair->key, pair->value);
+// 		}
+// 	}
 
-void ht_insert(ht_hash_table* hash_table, const char* key, const char* value) {
+// 	hash_table->base_size = new_hash_table->base_size;
+// 	hash_table->count = new_hash_table->count;
 
-	if(hash_table->count == hash_table->size) {
-		return;
-	}
+// 	const int tmp_size = hash_table->size;
+// 	hash_table->size = new_hash_table->size;
+// 	new_hash_table->size = tmp_size;
 
-	// const int load = hash_table->count * 100 / hash_table->size;
-	// if(load > 70) {
-	// 	ht_resize_up(hash_table);
-	// }
+// 	ht_pair** tmp_pairs = hash_table->pairs;
+// 	hash_table->pairs = new_hash_table->pairs;
+// 	new_hash_table->pairs = tmp_pairs;
 
-	ht_pair* new_pair = ht_new_pair(key, value);
+// 	ht_delete_hash_table(new_hash_table);
+// }
 
-	// Initially, get a new index for the newly created pair
-	int index = ht_get_hash(new_pair->key, hash_table->size, 0);
+// static void ht_resize_up(ht_hash_table* hash_table) {
+// 	ht_resize(hash_table, hash_table->base_size * 2);
+// }
 
-	// Get the pair at position index;
-	ht_pair* current_pair = hash_table->pairs[index];
+// static void ht_resize_down(ht_hash_table* hash_table) {
+// 	ht_resize(hash_table, hash_table->base_size / 2);
+// }
+
+// static int ht_get_hash(const char* str, const int bucket_size, const int attempts) {
+// 	const int hash_a = ht_hash(str, HT_PRIME_1, bucket_size);
+// 	const int hash_b = ht_hash(str, HT_PRIME_2, bucket_size);
+// 	return ( hash_a + attempts * ( hash_b + 1 ) ) % bucket_size;
+// }
+
+// void ht_insert(ht_hash_table* hash_table, const char* key, const char* value) {
+
+// 	if(hash_table->count == hash_table->size) {
+// 		return;
+// 	}
+
+// 	// const int load = hash_table->count * 100 / hash_table->size;
+// 	// if(load > 70) {
+// 	// 	ht_resize_up(hash_table);
+// 	// }
+
+// 	ht_pair* new_pair = ht_new_pair(key, value);
+
+// 	// Initially, get a new index for the newly created pair
+// 	int index = ht_get_hash(new_pair->key, hash_table->size, 0);
+
+// 	// Get the pair at position index;
+// 	ht_pair* current_pair = hash_table->pairs[index];
 	
-	int i = 1;
-	// Loop until we find an empty bucket.
-	while(current_pair != NULL && current_pair != &HT_DELETED_PAIR) {
-		// Incase the key already exists
-		if(strcmp(current_pair->key, key) == 0) {
-			break;
-		}
-		index = ht_get_hash(new_pair->key, hash_table->size, i);
-		current_pair = hash_table->pairs[index];
-		i++;
-	}
+// 	int i = 1;
+// 	// Loop until we find an empty bucket.
+// 	while(current_pair != NULL && current_pair != &HT_DELETED_PAIR) {
+// 		// Incase the key already exists
+// 		if(strcmp(current_pair->key, key) == 0) {
+// 			break;
+// 		}
+// 		index = ht_get_hash(new_pair->key, hash_table->size, i);
+// 		current_pair = hash_table->pairs[index];
+// 		i++;
+// 	}
 
-	// Delete in case the bucket is already not empty for a specific key
-	ht_delete_pair(current_pair);
-	hash_table->pairs[index] = new_pair;
-	hash_table->count += 1;
-}
+// 	// Delete in case the bucket is already not empty for a specific key
+// 	ht_delete_pair(current_pair);
+// 	hash_table->pairs[index] = new_pair;
+// 	hash_table->count += 1;
+// }
 
-char* ht_search(ht_hash_table* hash_table, const char* key) {
+// char* ht_search(ht_hash_table* hash_table, const char* key) {
 
-	// Get the initial index
-	int index = ht_get_hash(key, hash_table->size, 0);
-	ht_pair* current_pair = hash_table->pairs[index];
+// 	// Get the initial index
+// 	int index = ht_get_hash(key, hash_table->size, 0);
+// 	ht_pair* current_pair = hash_table->pairs[index];
 
-	int i = 1;
-	while(current_pair != NULL) {
+// 	int i = 1;
+// 	while(current_pair != NULL) {
 
-		if(current_pair != &HT_DELETED_PAIR) {
-			// Check if the pair's key and requested key match if yes, return value
-			if(strcmp(current_pair->key, key) == 0) {
-				return current_pair->value;
-			}
-		}
-		// More attempts at finding the bucket
-		index = ht_get_hash(key, hash_table->size, i);
-		current_pair = hash_table->pairs[index];
-		i++;
-	}
-	return NULL;
-}
+// 		if(current_pair != &HT_DELETED_PAIR) {
+// 			// Check if the pair's key and requested key match if yes, return value
+// 			if(strcmp(current_pair->key, key) == 0) {
+// 				return current_pair->value;
+// 			}
+// 		}
+// 		// More attempts at finding the bucket
+// 		index = ht_get_hash(key, hash_table->size, i);
+// 		current_pair = hash_table->pairs[index];
+// 		i++;
+// 	}
+// 	return NULL;
+// }
 
-void ht_delete(ht_hash_table* hash_table, const char* key) {
+// void ht_delete(ht_hash_table* hash_table, const char* key) {
 
-	const int load = hash_table->count * 100 / hash_table->size;
-	if(load < 10) {
-		ht_resize_down(hash_table);
-	}
+// 	const int load = hash_table->count * 100 / hash_table->size;
+// 	if(load < 10) {
+// 		ht_resize_down(hash_table);
+// 	}
 
-	// Get the initial index
-	int index = ht_get_hash(key, hash_table->size, 0);
-	ht_pair* current_pair = hash_table->pairs[index];
+// 	// Get the initial index
+// 	int index = ht_get_hash(key, hash_table->size, 0);
+// 	ht_pair* current_pair = hash_table->pairs[index];
 
-	int i = 1;
-	while(current_pair != NULL) {
-		if(current_pair != &HT_DELETED_PAIR) {
-			// Check if the pair's key and requested key match if yes, delete the pair and decrement the count
-			if(strcmp(current_pair->key, key) == 0) {
-				ht_delete_pair(current_pair);
-				hash_table->pairs[index] = &HT_DELETED_PAIR;
-				hash_table->count--;
-			}
-		}
-		// More attempts at finding the bucket
-		index = ht_get_hash(key, hash_table->size, i);
-		current_pair = hash_table->pairs[index];
-		i++;
-	}
-}
+// 	int i = 1;
+// 	while(current_pair != NULL) {
+// 		if(current_pair != &HT_DELETED_PAIR) {
+// 			// Check if the pair's key and requested key match if yes, delete the pair and decrement the count
+// 			if(strcmp(current_pair->key, key) == 0) {
+// 				ht_delete_pair(current_pair);
+// 				hash_table->pairs[index] = &HT_DELETED_PAIR;
+// 				hash_table->count--;
+// 			}
+// 		}
+// 		// More attempts at finding the bucket
+// 		index = ht_get_hash(key, hash_table->size, i);
+// 		current_pair = hash_table->pairs[index];
+// 		i++;
+// 	}
+// }
