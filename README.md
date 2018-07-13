@@ -1,3 +1,7 @@
 # c-hashtable
 
-## Fixed size. Does not grow
+## Fixed size hashtable implementation in C
+## Collision is handled using doubly linked list
+
+## TODO:
+### Implement variable size hashtable
