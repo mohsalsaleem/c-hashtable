@@ -12,13 +12,14 @@ typedef struct Node {
 typedef struct {
 	Node* head;
 	Node* tail;
+	int size;
 } dll;
 
 typedef struct {
 	int base_size;
 	int size;
 	int count;
-	dll* list;
+	dll** list;
 } ht_hash_table;
 
 void dll_insert(dll *list, const char* key, const char* value);

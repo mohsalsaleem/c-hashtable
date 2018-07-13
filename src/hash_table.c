@@ -50,7 +50,7 @@ void dll_print(dll* list) {
 	Node* node = list->head;
 	do {
 		if(node != NULL) {
-			printf("Key: %s\n", node->pair->key);
+			printf("Key: %s, Value: %s\n", node->pair->key, node->pair->value);
 			node = node->next;
 		}
 	} while(node != NULL);
@@ -60,6 +60,19 @@ dll* dll_new() {
 	dll* new_dll = malloc(sizeof(dll));
 	new_dll->head = NULL;
 	new_dll->tail = NULL;
+}
+
+Node* dll_search(dll* list, const char* key) {
+	if(list == NULL || list == &DL_EMPTY_LIST)
+		return NULL;
+	Node* currentNode = list->head;
+	while(currentNode != NULL) {
+		if(strcmp(currentNode->pair->key, key) == 0) {
+			return currentNode;
+		}
+		currentNode = currentNode->next;
+	}
+	return NULL;
 }
 
 void dll_insert(dll* list, const char* key, const char* value) {
@@ -73,10 +86,17 @@ void dll_insert(dll* list, const char* key, const char* value) {
 		new_node->previous = NULL;
 		list->head = new_node;
 		list->tail = new_node;
+		list->size += 1;
 	} else {
-		list->tail->next = new_node;
-		new_node->previous = list->tail;
-		list->tail = new_node;
+		Node* foundNode = dll_search(list, key);
+		if(foundNode != NULL) {
+			foundNode->pair = new_pair;
+		} else {
+			list->tail->next = new_node;
+			new_node->previous = list->tail;
+			list->tail = new_node;
+			list->size += 1;
+		}
 	}
 }
 
@@ -87,8 +107,7 @@ ht_hash_table* ht_new_sized(const int base_size) {
 	hash_table->size = next_prime(hash_table->base_size);
 
 	hash_table->count = 0;
-	// hash_table->pairs = calloc((size_t)hash_table->size, sizeof(ht_pair*));
-	hash_table->list = malloc(sizeof(dll));
+	hash_table->list = calloc((size_t)hash_table->size, sizeof(dll*));
 
 	return hash_table;
 }
@@ -120,38 +139,49 @@ static void dll_delete_node(Node* node) {
 	free(node);
 }
 
-void dll_delete(dll *list) {
-	int m = 0;
+void dll_delete_by_key(dll *list, const char* key) {
+	Node* node = list->head;
+	Node* next_node;
 
+	while(node != NULL) {
+		next_node = node->next;
+		if(strcmp(node->pair->key, key) == 0) {
+			dll_delete_node(node);
+			list->size -= 1;
+			return;
+		}
+		node = next_node;
+	}
+}
+
+void dll_delete_list(dll *list) {
 	Node* node = list->head;
 	Node* next_node;
 
 	while(node != NULL) {
 		next_node = node->next;
 		dll_delete_node(node);
+		list->size -= 1;
 		node = next_node;
 		if(node != NULL)
 			node->previous = NULL;
-		if(m > 50) {
-			exit(EXIT_FAILURE);
-		}
 	}
 
 	list->head = NULL;
 	list->tail = NULL;
 }
 
-// void ht_delete_hash_table(ht_hash_table* hash_table) {
-// 	int i;
-// 	for (i = 0; i < hash_table->size; i++) {
-// 		ht_pair* pair =  hash_table->pairs[i];
-// 		if(pair != NULL) {
-// 			ht_delete_pair(pair);
-// 		}
-// 	}
-// 	free(hash_table->pairs);
-// 	free(hash_table);
-// }
+void ht_delete_hash_table(ht_hash_table* hash_table) {
+	int i;
+	for (i = 0; i < hash_table->size; i++) {
+		dll* list =  hash_table->list[i];
+		if(list != NULL) {
+			dll_delete_list(list);
+		}
+	}
+	free(hash_table->list);
+	free(hash_table);
+}
 
 // static void ht_resize(ht_hash_table* hash_table, const int base_size) {
 // 	if(base_size < HT_INTIAL_BASE_SIZE) {
@@ -189,96 +219,69 @@ void dll_delete(dll *list) {
 // 	ht_resize(hash_table, hash_table->base_size / 2);
 // }
 
-// static int ht_get_hash(const char* str, const int bucket_size, const int attempts) {
-// 	const int hash_a = ht_hash(str, HT_PRIME_1, bucket_size);
-// 	const int hash_b = ht_hash(str, HT_PRIME_2, bucket_size);
-// 	return ( hash_a + attempts * ( hash_b + 1 ) ) % bucket_size;
-// }
+static int ht_get_hash(const char* str, const int bucket_size, const int attempts) {
+	const int hash_a = ht_hash(str, HT_PRIME_1, bucket_size);
+	const int hash_b = ht_hash(str, HT_PRIME_2, bucket_size);
+	return ( hash_a + attempts * ( hash_b + 1 ) ) % bucket_size;
+}
 
-// void ht_insert(ht_hash_table* hash_table, const char* key, const char* value) {
+void ht_insert(ht_hash_table* hash_table, const char* key, const char* value) {
 
-// 	if(hash_table->count == hash_table->size) {
-// 		return;
-// 	}
+	if(hash_table->count == hash_table->size) {
+		return;
+	}
+	// const int load = hash_table->count * 100 / hash_table->size;
+	// if(load > 70) {
+	// 	ht_resize_up(hash_table);
+	// }
 
-// 	// const int load = hash_table->count * 100 / hash_table->size;
-// 	// if(load > 70) {
-// 	// 	ht_resize_up(hash_table);
-// 	// }
+	// Initially, get a new index for the newly created pair
+	int index = ht_get_hash(key, hash_table->size, 0);
+	// Get the list at position index;
+	dll* list = hash_table->list[index];
+	if(list == NULL) {
+		list = dll_new();
+	}
+	dll_insert(list, key, value);
+	hash_table->list[index] = list;
+	hash_table->count += 1;
+}
 
-// 	ht_pair* new_pair = ht_new_pair(key, value);
+int ht_size(ht_hash_table* hash_table) {
+	return hash_table->count;
+}
 
-// 	// Initially, get a new index for the newly created pair
-// 	int index = ht_get_hash(new_pair->key, hash_table->size, 0);
+char* ht_search(ht_hash_table* hash_table, const char* key) {
 
-// 	// Get the pair at position index;
-// 	ht_pair* current_pair = hash_table->pairs[index];
-	
-// 	int i = 1;
-// 	// Loop until we find an empty bucket.
-// 	while(current_pair != NULL && current_pair != &HT_DELETED_PAIR) {
-// 		// Incase the key already exists
-// 		if(strcmp(current_pair->key, key) == 0) {
-// 			break;
-// 		}
-// 		index = ht_get_hash(new_pair->key, hash_table->size, i);
-// 		current_pair = hash_table->pairs[index];
-// 		i++;
-// 	}
+	// Get the initial index
+	int index = ht_get_hash(key, hash_table->size, 0);
+	dll* list = hash_table->list[index];
+	if(list == NULL) {
+		return NULL;
+	}
+	Node* foundNode = dll_search(list, key);
+	if(foundNode != NULL) {
+		return foundNode->pair->value;
+	}
+	return NULL;
+}
 
-// 	// Delete in case the bucket is already not empty for a specific key
-// 	ht_delete_pair(current_pair);
-// 	hash_table->pairs[index] = new_pair;
-// 	hash_table->count += 1;
-// }
+void ht_delete(ht_hash_table* hash_table, const char* key) {
 
-// char* ht_search(ht_hash_table* hash_table, const char* key) {
+	// const int load = hash_table->count * 100 / hash_table->size;
+	// if(load < 10) {
+	// 	ht_resize_down(hash_table);
+	// }
 
-// 	// Get the initial index
-// 	int index = ht_get_hash(key, hash_table->size, 0);
-// 	ht_pair* current_pair = hash_table->pairs[index];
-
-// 	int i = 1;
-// 	while(current_pair != NULL) {
-
-// 		if(current_pair != &HT_DELETED_PAIR) {
-// 			// Check if the pair's key and requested key match if yes, return value
-// 			if(strcmp(current_pair->key, key) == 0) {
-// 				return current_pair->value;
-// 			}
-// 		}
-// 		// More attempts at finding the bucket
-// 		index = ht_get_hash(key, hash_table->size, i);
-// 		current_pair = hash_table->pairs[index];
-// 		i++;
-// 	}
-// 	return NULL;
-// }
-
-// void ht_delete(ht_hash_table* hash_table, const char* key) {
-
-// 	const int load = hash_table->count * 100 / hash_table->size;
-// 	if(load < 10) {
-// 		ht_resize_down(hash_table);
-// 	}
-
-// 	// Get the initial index
-// 	int index = ht_get_hash(key, hash_table->size, 0);
-// 	ht_pair* current_pair = hash_table->pairs[index];
-
-// 	int i = 1;
-// 	while(current_pair != NULL) {
-// 		if(current_pair != &HT_DELETED_PAIR) {
-// 			// Check if the pair's key and requested key match if yes, delete the pair and decrement the count
-// 			if(strcmp(current_pair->key, key) == 0) {
-// 				ht_delete_pair(current_pair);
-// 				hash_table->pairs[index] = &HT_DELETED_PAIR;
-// 				hash_table->count--;
-// 			}
-// 		}
-// 		// More attempts at finding the bucket
-// 		index = ht_get_hash(key, hash_table->size, i);
-// 		current_pair = hash_table->pairs[index];
-// 		i++;
-// 	}
-// }
+	// Get the initial index
+	int index = ht_get_hash(key, hash_table->size, 0);
+	dll* list = hash_table->list[index];
+	if(list == NULL) {
+		return;
+	}
+	dll_delete_by_key(list, key);
+	if(list->size == 0) {
+		list = &DL_EMPTY_LIST;
+		hash_table->list[index] = list;
+	}
+}
