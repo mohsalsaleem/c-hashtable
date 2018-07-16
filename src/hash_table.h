@@ -23,6 +23,9 @@ typedef struct {
 } ht_hash_table;
 
 void dll_insert(dll *list, const char* key, const char* value);
+Node* dll_search(dll *list, const char* key);
+void dll_delete_by_key(dll *list, const char* key);
+void dll_delete_list(dll *list);
 
 void ht_insert(ht_hash_table* hash_table, const char* key, const char* value);
 char* ht_get(ht_hash_table* hash_table, const char* key);
