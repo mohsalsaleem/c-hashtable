@@ -169,6 +169,7 @@ void dll_delete_list(dll *list) {
 
 	list->head = NULL;
 	list->tail = NULL;
+	free(list);
 }
 
 void ht_delete_hash_table(ht_hash_table* hash_table) {
